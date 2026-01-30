@@ -1,58 +1,62 @@
-document.addEventListener("DOMContentLoaded", () => {
+// ================= UTILIDADES =================
+// ⚠️ Devuelve fecha y hora actual
+function getNow() {
+  return new Date().toLocaleString();
+}
 
-  const password = document.getElementById("password");
-  const confirmPassword = document.getElementById("confirmPassword");
-  const strengthBar = document.getElementById("passwordStrength");
+// ================= EVENTO REGISTRO =================
+document.getElementById("registerForm").addEventListener("submit", function (e) {
+  e.preventDefault(); //  evita recarga del form
 
-  document.querySelectorAll(".toggle-password").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const input = btn.previousElementSibling;
-      const icon = btn.querySelector("i");
-      input.type = input.type === "password" ? "text" : "password";
-      icon.classList.toggle("bi-eye");
-      icon.classList.toggle("bi-eye-slash");
-    });
-  });
+  // ================= CAMPOS =================
+  const name = document.getElementById("name").value.trim();
+  const email = document.getElementById("email").value.trim();
+  const password = document.getElementById("password").value.trim();
 
-  password.addEventListener("input", () => {
-    let strength = 0;
-    if (password.value.length >= 6) strength++;
-    if (/[A-Z]/.test(password.value)) strength++;
-    if (/[0-9]/.test(password.value)) strength++;
+  // ================= VALIDACIONES =================
+  if (!name || !email || !password) {
+    Swal.fire("Error", "Todos los campos son obligatorios", "error");
+    return;
+  }
 
-    strengthBar.style.width = `${strength * 33}%`;
-    strengthBar.className = "progress-bar";
+  // ================= OBTENER USUARIOS =================
+  let users = JSON.parse(localStorage.getItem("users")) || [];
 
-    if (strength === 1) strengthBar.classList.add("bg-danger");
-    if (strength === 2) strengthBar.classList.add("bg-warning");
-    if (strength === 3) strengthBar.classList.add("bg-success");
-  });
+  // ================= VALIDAR EMAIL DUPLICADO =================
+  const exists = users.some((u) => u.email === email);
+  if (exists) {
+    Swal.fire("Error", "El correo ya está registrado", "error");
+    return;
+  }
 
-  document.getElementById("registerForm").addEventListener("submit", e => {
-    e.preventDefault();
+  // ================= CREAR USUARIO =================
+  const newUser = {
+    name,
+    email,
+    password,
+    lastLogin: null,
+    history: [
+      {
+        action: "Cuenta creada",
+        date: getNow(),
+      },
+    ],
+  };
 
-    if (password.value !== confirmPassword.value) {
-      Swal.fire("Error", "Las contraseñas no coinciden", "error");
-      return;
-    }
+  users.push(newUser);
 
-    let users = JSON.parse(localStorage.getItem("users")) || [];
+  // ================= GUARDAR =================
+  localStorage.setItem("users", JSON.stringify(users));
 
-    users.push({
-      name: document.getElementById("name").value,
-      email: document.getElementById("email").value,
-      password: password.value
-    });
-
-    localStorage.setItem("users", JSON.stringify(users));
-
-    Swal.fire({
-      icon: "success",
-      title: "Registro exitoso",
-      timer: 1200,
-      showConfirmButton: false
-    });
-
-    setTimeout(() => window.location.href = "index.html", 1200);
+  // ================= CONFIRMACIÓN =================
+  Swal.fire({
+    icon: "success",
+    title: "Registro exitoso",
+    text: "Ahora podés iniciar sesión",
+    timer: 1500,
+    showConfirmButton: false,
+  }).then(() => {
+    // 🔁 REDIRECCIÓN CORRECTA
+    window.location.href = "../index.html";
   });
 });

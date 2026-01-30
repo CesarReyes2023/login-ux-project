@@ -1,70 +1,115 @@
-document.addEventListener("DOMContentLoaded", () => {
+// ================= CONFIGURACIÓN =================
+const MAX_ATTEMPTS = 3;
+const BLOCK_TIME = 2 * 60 * 1000; // 2 minutos
 
-  const email = document.getElementById("email");
-  const password = document.getElementById("password");
-  const rememberMe = document.getElementById("rememberMe");
-  const btnLogin = document.getElementById("btnLogin");
-  const btnText = document.getElementById("btnText");
-  const btnLoader = document.getElementById("btnLoader");
+// ================= UTILIDAD =================
+function getNow() {
+  return new Date().toLocaleString();
+}
 
-  let attempts = JSON.parse(localStorage.getItem("attempts")) || 0;
+// ================= LOGIN =================
+document.getElementById("loginForm").addEventListener("submit", function (e) {
+  e.preventDefault();
 
-  document.querySelectorAll(".toggle-password").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const input = btn.previousElementSibling;
-      const icon = btn.querySelector("i");
-      input.type = input.type === "password" ? "text" : "password";
-      icon.classList.toggle("bi-eye");
-      icon.classList.toggle("bi-eye-slash");
-    });
-  });
+  const email = document.getElementById("email").value.trim();
+  const password = document.getElementById("password").value.trim();
+  const remember = document.getElementById("remember")?.checked;
 
-  document.getElementById("loginForm").addEventListener("submit", e => {
-    e.preventDefault();
+  // ====== VERIFICAR BLOQUEO ======
+  const blockedUntil = localStorage.getItem("blockedUntil");
 
-    if (attempts >= 3) {
-      Swal.fire("Bloqueado", "Demasiados intentos fallidos. Esperá un momento.", "error");
+  if (blockedUntil && Date.now() < blockedUntil) {
+    const remaining = Math.ceil((blockedUntil - Date.now()) / 1000);
+    Swal.fire(
+      "Cuenta bloqueada",
+      `Intentá nuevamente en ${remaining} segundos`,
+      "error"
+    );
+    return;
+  }
+
+  // Desbloqueo automático
+  if (blockedUntil && Date.now() >= blockedUntil) {
+    localStorage.removeItem("blockedUntil");
+    localStorage.removeItem("loginAttempts");
+  }
+
+  const users = JSON.parse(localStorage.getItem("users")) || [];
+  const user = users.find(
+    (u) => u.email === email && u.password === password
+  );
+
+  // ================= LOGIN FALLIDO =================
+  if (!user) {
+    let attempts = parseInt(localStorage.getItem("loginAttempts")) || 0;
+    attempts++;
+    localStorage.setItem("loginAttempts", attempts);
+
+    if (attempts >= MAX_ATTEMPTS) {
+      localStorage.setItem("blockedUntil", Date.now() + BLOCK_TIME);
+      Swal.fire(
+        "Cuenta bloqueada",
+        "Demasiados intentos fallidos. Intenta más tarde.",
+        "error"
+      );
       return;
     }
 
-    btnLogin.disabled = true;
-    btnText.textContent = "Validando...";
-    btnLoader.classList.remove("d-none");
+    Swal.fire(
+      "Error",
+      `Credenciales incorrectas. Intentos restantes: ${
+        MAX_ATTEMPTS - attempts
+      }`,
+      "error"
+    );
+    return;
+  }
 
-    setTimeout(() => {
-      const users = JSON.parse(localStorage.getItem("users")) || [];
-      const user = users.find(u => u.email === email.value && u.password === password.value);
+  // ================= LOGIN EXITOSO =================
+  user.lastLogin = getNow();
 
-      if (!user) {
-        attempts++;
-        localStorage.setItem("attempts", attempts);
+  user.history = user.history || [];
+  user.history.push({
+    action: "Inicio de sesión exitoso",
+    date: getNow(),
+  });
 
-        Swal.fire("Error", "Correo o contraseña incorrectos", "error");
+  const updatedUsers = users.map((u) =>
+    u.email === user.email ? user : u
+  );
 
-        btnLogin.disabled = false;
-        btnText.textContent = "Entrar";
-        btnLoader.classList.add("d-none");
-        return;
-      }
+  localStorage.setItem("users", JSON.stringify(updatedUsers));
+  localStorage.setItem("user", JSON.stringify(user));
+  localStorage.setItem("isAuth", "true");
 
-      localStorage.removeItem("attempts");
-      localStorage.setItem("isAuth", "true");
+  // Reset de bloqueos
+  localStorage.removeItem("loginAttempts");
+  localStorage.removeItem("blockedUntil");
 
-      if (rememberMe.checked) {
-        localStorage.setItem("user", JSON.stringify(user));
-      }
+  //  Recordar sesión
+  if (remember) {
+    localStorage.setItem("remember", "true");
+  } else {
+    localStorage.removeItem("remember");
+  }
 
-      Swal.fire({
-        icon: "success",
-        title: "Bienvenido",
-        timer: 1200,
-        showConfirmButton: false
-      });
-
-      setTimeout(() => {
-        window.location.href = "pages/dashboard.html";
-      }, 1200);
-
-    }, 800);
+  Swal.fire({
+    icon: "success",
+    title: "Bienvenido",
+    text: "Inicio de sesión exitoso",
+    timer: 1500,
+    showConfirmButton: false,
+  }).then(() => {
+    window.location.href = "pages/dashboard.html";
   });
 });
+
+// ================= DESBLOQUEO EN VIVO (UX PRO) =================
+setInterval(() => {
+  const blockedUntil = localStorage.getItem("blockedUntil");
+  if (blockedUntil && Date.now() >= blockedUntil) {
+    localStorage.removeItem("blockedUntil");
+    localStorage.removeItem("loginAttempts");
+    location.reload();
+  }
+}, 1000);
